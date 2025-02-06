@@ -1,65 +1,99 @@
-# gpt-code-editor README
+# GPT Code Editor
 
-This is the README for your extension "gpt-code-editor". After writing up a brief description, we recommend including the following sections.
+A powerful VS Code extension that integrates the DeepSeek model via Ollama for AI-powered code assistance. This extension enhances your coding experience with intelligent suggestions, code generation, and project-wide context awareness.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- 🤖 **AI-Powered Chat Interface**: Discuss code and get intelligent responses
+- ✨ **Smart Code Suggestions**: Real-time code completion and suggestions
+- 🔄 **Code Generation**: Generate code using natural language prompts
+- 📝 **Code Explanations**: Get instant explanations for selected code
+- 🔍 **Project Context Awareness**: AI understands your entire project structure
+- 🛠️ **Smart Updates**: Intelligent code modification suggestions
+- ✅ **Review Changes**: Preview and approve/reject AI-generated changes
 
-For example if there is an image subfolder under your extension project workspace:
+## Prerequisites
 
-\!\[feature X\]\(images/feature-x.png\)
+- Node.js (v20 LTS recommended)
+- Visual Studio Code (v1.96.0 or higher)
+- Ollama installed locally
+- DeepSeek model installed in Ollama (`deepseek-r1`)
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+## Installation
 
-## Requirements
+1. Install Ollama:
+   ```bash
+   # macOS/Linux
+   curl https://ollama.ai/install.sh | sh
+   
+   # Windows
+   # Download from https://ollama.ai/download
+   ```
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+2. Pull the DeepSeek model:
+   ```bash
+   ollama pull deepseek-r1
+   ```
 
-## Extension Settings
+3. Install the extension:
+   - Via VS Code Marketplace (coming soon)
+   - Or build from source:
+     ```bash
+     git clone https://github.com/yourusername/gpt-code-editor
+     cd gpt-code-editor
+     npm install
+     npm run build
+     ```
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+## Usage
 
-For example:
+1. Open Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`)
+2. Available commands:
+   - `GPT: Open Chat Interface`
+   - `GPT: Generate Code`
+   - `GPT: Explain Code`
+   - `GPT: Analyze and Suggest Code Updates`
+   - `GPT: Describe Selected Code`
 
-This extension contributes the following settings:
+## Contributing
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+We welcome contributions! Here's how you can help:
 
-## Known Issues
+1. Fork the repository
+2. Create your feature branch:
+   ```bash
+   git checkout -b feature/amazing-feature
+   ```
+3. Commit your changes:
+   ```bash
+   git commit -m 'Add some amazing feature'
+   ```
+4. Push to the branch:
+   ```bash
+   git push origin feature/amazing-feature
+   ```
+5. Open a Pull Request
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+### Development Setup
 
-## Release Notes
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Open in VS Code:
+   ```bash
+   code .
+   ```
+4. Press F5 to start debugging
 
-Users appreciate release notes as you update your extension.
+### Project Structure
 
-### 1.0.0
+- `src/`: Source code files
+- `test/`: Test files
+- `docs/`: Documentation
+- `.vscode/`: VS Code specific settings
 
-Initial release of ...
+## License
 
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code.  Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux)
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux)
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+This project is licensed under the MIT License - see below for details:
