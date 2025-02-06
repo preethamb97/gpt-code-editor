@@ -1,0 +1,62 @@
+{
+  "name": "gpt-code-editor",
+  "displayName": "GPT Code Editor",
+  "description": "AI-powered code assistance using DeepSeek model",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Machine Learning",
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:gpt-code-editor.openChat",
+    "onCommand:gpt-code-editor.generateCode",
+    "onCommand:gpt-code-editor.explainCode"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "gpt-code-editor.openChat",
+        "title": "GPT: Open Chat Interface"
+      },
+      {
+        "command": "gpt-code-editor.generateCode",
+        "title": "GPT: Generate Code"
+      },
+      {
+        "command": "gpt-code-editor.explainCode",
+        "title": "GPT: Explain Code"
+      },
+      {
+        "command": "gpt-code-editor.smartUpdate",
+        "title": "GPT: Analyze and Suggest Code Updates"
+      },
+      {
+        "command": "gpt-code-editor.describeCode",
+        "title": "GPT: Describe Selected Code"
+      }
+    ]
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "pretest": "npm run lint",
+    "test": "vscode-test"
+  },
+  "type": "commonjs",
+  "dependencies": {
+    "ollama": "^0.4.4",
+    "fs-extra": "^11.2.0"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.96.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "eslint": "^9.19.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1"
+  }
+}
