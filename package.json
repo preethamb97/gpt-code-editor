@@ -12,9 +12,7 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:gpt-code-editor.openChat",
-    "onCommand:gpt-code-editor.generateCode",
-    "onCommand:gpt-code-editor.explainCode"
+    "onCommand:gpt-code-editor.openChat"
   ],
   "main": "./extension.js",
   "contributes": {
@@ -22,22 +20,6 @@
       {
         "command": "gpt-code-editor.openChat",
         "title": "GPT: Open Chat Interface"
-      },
-      {
-        "command": "gpt-code-editor.generateCode",
-        "title": "GPT: Generate Code"
-      },
-      {
-        "command": "gpt-code-editor.explainCode",
-        "title": "GPT: Explain Code"
-      },
-      {
-        "command": "gpt-code-editor.smartUpdate",
-        "title": "GPT: Analyze and Suggest Code Updates"
-      },
-      {
-        "command": "gpt-code-editor.describeCode",
-        "title": "GPT: Describe Selected Code"
       }
     ]
   },

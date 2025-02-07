@@ -1,133 +1,110 @@
 const vscode = require('vscode');
 const fs = require('fs-extra');
 const path = require('path');
+const ImportHandler = require('./importHandler');
 
 class CodeModifier {
-    static async applyChange(parsedPrompt) {
-        switch (parsedPrompt.action) {
-            case 'CREATE':
-                return await this.handleCreateAction(parsedPrompt);
-            case 'MODIFY':
-                return await this.handleModifyAction(parsedPrompt);
-            case 'DELETE':
-                return await this.handleDeleteAction(parsedPrompt);
-            default:
-                throw new Error(`Unsupported action: ${parsedPrompt.action}`);
+    static async applyChange(change) {
+        try {
+            let changeId;
+            
+            // Handle imports first if they exist
+            if (change.imports && change.imports.length > 0) {
+                const validatedImports = await ImportHandler.validateImports(
+                    change.imports,
+                    change.file
+                );
+                await ImportHandler.addImports(change.file, validatedImports);
+            }
+
+            // Apply the actual code changes
+            switch (change.type) {
+                case 'addition':
+                    changeId = await this.handleAddition(change);
+                    break;
+                case 'modification':
+                    changeId = await this.handleModification(change);
+                    break;
+                case 'deletion':
+                    changeId = await this.handleDeletion(change);
+                    break;
+                default:
+                    throw new Error(`Unsupported change type: ${change.type}`);
+            }
+
+            return changeId;
+        } catch (error) {
+            throw new Error(`Failed to apply changes: ${error.message}`);
         }
     }
 
-    static async handleCreateAction(parsedPrompt) {
-        const filePath = parsedPrompt.file;
+    static async handleAddition(change) {
+        const filePath = change.file;
         const dirPath = path.dirname(filePath);
         
-        // Create directory if it doesn't exist
         await fs.ensureDir(dirPath);
-
-        // Check if file already exists
         const fileExists = await fs.pathExists(filePath);
+        
+        let originalContent = '';
         if (fileExists) {
-            throw new Error(`File already exists: ${filePath}`);
+            const document = await vscode.workspace.openTextDocument(filePath);
+            originalContent = document.getText();
         }
 
-        // Create new file with the provided code
-        const originalContent = '';
-        const newContent = parsedPrompt.code;
-
+        const newContent = this.insertContent(originalContent, change);
+        
         const changeManager = require('./changeManager');
-        const changeId = await changeManager.createChange(
+        return await changeManager.createChange(
             originalContent,
             newContent,
-            parsedPrompt.description,
+            change.considerations.join('\n'),
             filePath
         );
-
-        return changeId;
     }
 
-    static async handleModifyAction(parsedPrompt) {
-        const editor = vscode.window.activeTextEditor;
-        if (!editor) {
-            throw new Error('No active editor');
-        }
-
-        const document = editor.document;
+    static async handleModification(change) {
+        const document = await vscode.workspace.openTextDocument(change.file);
         const originalContent = document.getText();
-        let newContent = originalContent;
-
-        switch (parsedPrompt.changeType) {
-            case 'INLINE':
-                newContent = this.applyInlineChange(originalContent, parsedPrompt);
-                break;
-            case 'BLOCK':
-                newContent = parsedPrompt.code;
-                break;
-            case 'APPEND':
-                newContent = this.applyAppendChange(originalContent, parsedPrompt);
-                break;
-            case 'PREPEND':
-                newContent = this.applyPrependChange(originalContent, parsedPrompt);
-                break;
-            default:
-                throw new Error(`Unsupported change type: ${parsedPrompt.changeType}`);
-        }
+        const newContent = this.replaceContent(originalContent, change);
 
         const changeManager = require('./changeManager');
-        const changeId = await changeManager.createChange(
+        return await changeManager.createChange(
             originalContent,
             newContent,
-            parsedPrompt.description,
-            document.uri.fsPath
+            change.considerations.join('\n'),
+            change.file
         );
-
-        return changeId;
     }
 
-    static async handleDeleteAction(parsedPrompt) {
-        const editor = vscode.window.activeTextEditor;
-        if (!editor) {
-            throw new Error('No active editor');
-        }
-
-        const document = editor.document;
+    static async handleDeletion(change) {
+        const document = await vscode.workspace.openTextDocument(change.file);
         const originalContent = document.getText();
-        
-        // Parse location range
-        const [startLine, endLine] = parsedPrompt.location.split('-').map(Number);
-        const lines = originalContent.split('\n');
-        const newLines = lines.filter((_, index) => index < startLine - 1 || index > endLine - 1);
-        const newContent = newLines.join('\n');
+        const newContent = this.removeContent(originalContent, change);
 
         const changeManager = require('./changeManager');
-        const changeId = await changeManager.createChange(
+        return await changeManager.createChange(
             originalContent,
             newContent,
-            parsedPrompt.description,
-            document.uri.fsPath
+            change.considerations.join('\n'),
+            change.file
         );
-
-        return changeId;
     }
 
-    static applyInlineChange(originalContent, parsedPrompt) {
+    static insertContent(originalContent, change) {
         const lines = originalContent.split('\n');
-        const lineNumber = parseInt(parsedPrompt.location) - 1;
-        lines[lineNumber] = parsedPrompt.code;
+        lines.splice(change.fromLine - 1, 0, change.add);
         return lines.join('\n');
     }
 
-    static applyAppendChange(originalContent, parsedPrompt) {
+    static replaceContent(originalContent, change) {
         const lines = originalContent.split('\n');
-        const lineNumber = parsedPrompt.location === 'end' 
-            ? lines.length 
-            : parseInt(parsedPrompt.location);
-        lines.splice(lineNumber, 0, parsedPrompt.code);
+        lines.splice(change.fromLine - 1, change.toLine - change.fromLine + 1, change.add);
         return lines.join('\n');
     }
 
-    static applyPrependChange(originalContent, parsedPrompt) {
+    static removeContent(originalContent, change) {
         const lines = originalContent.split('\n');
-        const lineNumber = parseInt(parsedPrompt.location) - 1;
-        lines.splice(lineNumber, 0, parsedPrompt.code);
+        lines.splice(change.fromLine - 1, change.toLine - change.fromLine + 1);
         return lines.join('\n');
     }
 }

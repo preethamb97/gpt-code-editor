@@ -16,31 +16,37 @@ class SmartUpdateManager {
         // Get project context
         const fileContext = await projectContext.getContextForPrompt(fileName);
         
-        // Analyze current file and suggest updates
-        const prompt = `Analyze this code and suggest improvements or additions:
-            Current file: ${fileName}
-            ${fileContext}
-            
-            Code to analyze:
-            ${fullText}
-            
-            Provide specific suggestions for:
-            1. Code improvements
-            2. Missing functionality
-            3. Best practices
-            4. Potential bugs
-            
-            Format the response as:
-            {
-                "suggestions": [
-                    {
-                        "type": "improvement|addition|fix",
-                        "location": "line number or function name",
-                        "code": "actual code to insert/modify",
-                        "description": "explanation of the change"
-                    }
-                ]
-            }`;
+        const prompt = `Analyze the following code and suggest improvements:
+
+File Context:
+${fileContext}
+
+Current File Content:
+${fullText}
+
+Please provide suggestions in the following format:
+{
+    "changes": [
+        {
+            "file": "${fileName}",
+            "fromLine": number,
+            "toLine": number,
+            "type": "modification" | "addition" | "deletion",
+            "add": "string",
+            "remove": "string",
+            "imports": [
+                {
+                    "name": "import-name",
+                    "location": "file/import.js"
+                }
+            ],
+            "considerations": [
+                "Reason for the change",
+                "Impact on code quality"
+            ]
+        }
+    ]
+}`;
 
         const response = await ollamaService.generateResponse(prompt);
         return this.parseSuggestions(response);
@@ -51,9 +57,9 @@ class SmartUpdateManager {
             const suggestions = await this.analyzeAndSuggestUpdates();
             
             // Create QuickPick items for each suggestion
-            const items = suggestions.map(s => ({
-                label: `${s.type}: ${s.location}`,
-                description: s.description,
+            const items = suggestions.changes.map(s => ({
+                label: `${s.type}: ${s.file}`,
+                description: s.considerations.join(', '),
                 suggestion: s
             }));
 
@@ -79,19 +85,17 @@ class SmartUpdateManager {
         const CodeInsertionManager = require('./codeInsertion');
         await CodeInsertionManager.showDiffAndInsert(
             editor.document.getText(),
-            suggestion.code
+            suggestion.add
         );
     }
 
     parseSuggestions(response) {
-        try {
-            const parsed = JSON.parse(response);
-            return parsed.suggestions || [];
-        } catch (error) {
-            console.error('Failed to parse suggestions:', error);
-            return [];
+        const parsedResponse = JSON.parse(response);
+        if (!parsedResponse.changes || !Array.isArray(parsedResponse.changes)) {
+            throw new Error('Invalid response format: missing or invalid changes array');
         }
+        return parsedResponse;
     }
 }
 
-module.exports = new SmartUpdateManager(); 
+module.exports = SmartUpdateManager; 

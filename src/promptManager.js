@@ -2,66 +2,77 @@ const vscode = require('vscode');
 
 class PromptManager {
     constructor() {
-        this.validActions = ['CREATE', 'MODIFY', 'DELETE'];
-        this.validChangeTypes = ['INLINE', 'BLOCK', 'APPEND', 'PREPEND'];
+        this.validTypes = ['modification', 'addition', 'deletion'];
     }
 
-    parsePrompt(promptText) {
+    parsePrompt(response) {
         try {
-            const sections = promptText.split('\n');
-            const result = {};
-            let currentSection = null;
-            let codeContent = [];
-            let isInCodeBlock = false;
-
-            for (const line of sections) {
-                if (line.startsWith('ACTION:')) {
-                    result.action = line.replace('ACTION:', '').trim();
-                } else if (line.startsWith('FILE:')) {
-                    result.file = line.replace('FILE:', '').trim();
-                } else if (line.startsWith('DESCRIPTION:')) {
-                    result.description = line.replace('DESCRIPTION:', '').trim();
-                } else if (line.startsWith('LOCATION:')) {
-                    result.location = line.replace('LOCATION:', '').trim();
-                } else if (line.startsWith('CHANGE_TYPE:')) {
-                    result.changeType = line.replace('CHANGE_TYPE:', '').trim();
-                } else if (line.startsWith('CODE:')) {
-                    isInCodeBlock = true;
-                } else if (isInCodeBlock) {
-                    codeContent.push(line);
-                }
+            const parsedResponse = JSON.parse(response);
+            
+            if (!parsedResponse.changes || !Array.isArray(parsedResponse.changes)) {
+                throw new Error('Invalid response format: missing or invalid changes array');
             }
 
-            result.code = codeContent.join('\n').trim();
-            return this.validatePrompt(result);
+            // Validate each change object
+            parsedResponse.changes.forEach(change => this.validateChange(change));
+
+            return parsedResponse;
         } catch (error) {
-            throw new Error(`Invalid prompt format: ${error.message}`);
+            throw new Error(`Failed to parse prompt: ${error.message}`);
         }
     }
 
-    validatePrompt(parsedPrompt) {
-        if (!parsedPrompt.action || !this.validActions.includes(parsedPrompt.action)) {
-            throw new Error('Invalid or missing ACTION');
-        }
+    validateChange(change) {
+        // Required fields based on PROMPT.md
+        const requiredFields = [
+            'file',
+            'fromLine',
+            'toLine',
+            'type',
+            'add',
+            'remove',
+            'imports',
+            'considerations'
+        ];
 
-        if (!parsedPrompt.file) {
-            throw new Error('Missing FILE path');
-        }
-
-        if (!parsedPrompt.description) {
-            throw new Error('Missing DESCRIPTION');
-        }
-
-        if (parsedPrompt.action === 'MODIFY') {
-            if (!parsedPrompt.location) {
-                throw new Error('MODIFY action requires LOCATION');
-            }
-            if (!parsedPrompt.changeType || !this.validChangeTypes.includes(parsedPrompt.changeType)) {
-                throw new Error('Invalid or missing CHANGE_TYPE for MODIFY action');
+        // Check all required fields exist
+        for (const field of requiredFields) {
+            if (!change[field]) {
+                throw new Error(`Missing required field: ${field}`);
             }
         }
 
-        return parsedPrompt;
+        // Validate type
+        if (!this.validTypes.includes(change.type)) {
+            throw new Error(`Invalid change type: ${change.type}`);
+        }
+
+        // Validate line numbers
+        if (typeof change.fromLine !== 'number' || typeof change.toLine !== 'number') {
+            throw new Error('Line numbers must be numeric');
+        }
+
+        if (change.fromLine > change.toLine) {
+            throw new Error('fromLine cannot be greater than toLine');
+        }
+
+        // Validate imports array
+        if (!Array.isArray(change.imports)) {
+            throw new Error('imports must be an array');
+        }
+
+        change.imports.forEach(imp => {
+            if (!imp.name || !imp.location) {
+                throw new Error('Each import must have name and location');
+            }
+        });
+
+        // Validate considerations array
+        if (!Array.isArray(change.considerations) || change.considerations.length === 0) {
+            throw new Error('considerations must be a non-empty array');
+        }
+
+        return change;
     }
 }
 

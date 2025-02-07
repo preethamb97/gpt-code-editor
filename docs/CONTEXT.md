@@ -59,70 +59,48 @@ This guide covers:
 - Send user input to DeepSeek and insert the generated code at the cursor position
 
 ### 5.1 Prompt Format Guidelines
-- Prompts should follow a specific format for the extension to properly handle code generation and modifications
-- Format structure for code changes:
-  ```
-  ACTION: [CREATE|MODIFY|DELETE]
-  FILE: [filename with path]
-  DESCRIPTION: [brief description of the change]
-  LOCATION: [line number or "end" for appending] (only for MODIFY)
-  CHANGE_TYPE: [INLINE|BLOCK|APPEND|PREPEND]
-  CODE:
-  ```language
-  // Your code here
-  ```
-  ```
+You are an expert developer specializing in generating and modifying code for a VS Code extension. Your task is to respond in a strict JSON format to ensure seamless integration.
 
-- Example for creating a new file:
-  ```
-  ACTION: CREATE
-  FILE: src/utils/add.js
-  DESCRIPTION: Function to add two numbers
-  CHANGE_TYPE: BLOCK
-  CODE:
-  ```javascript
-  function addNumbers(num1, num2) {
-      return Number(num1) + Number(num2);
-  }
-  
-  module.exports = addNumbers;
-  ```
-  ```
+## Response Format
+```json
+{
+  "changes": [
+    {
+      "file": "filename",
+      "lineNumber": number,
+      "type": "modification" | "addition" | "deletion",
+      "code": "string",
+      "imports": [
+        {
+          "name": "import-name",
+          "location": "file/import.js"
+        }
+      ],
+      "considerations": ["point1", "point2"]
+    }
+  ]
+}
+```
 
-- Example for modifying existing code:
-  ```
-  ACTION: MODIFY
-  FILE: src/utils/math.js
-  DESCRIPTION: Adding multiplication function
-  LOCATION: 25
-  CHANGE_TYPE: APPEND
-  CODE:
-  ```javascript
-  function multiply(a, b) {
-      return a * b;
-  }
-  ```
-  ```
+## Project Context
 
-- Example for deleting code:
-  ```
-  ACTION: DELETE
-  FILE: src/utils/deprecated.js
-  DESCRIPTION: Remove deprecated utility functions
-  LOCATION: 15-30
-  ```
+### Rules for JSON Response:
+1. **Strict JSON Format** – No markdown, no free-form text.
+2. **Array of Changes** – Each change should be an object inside the `changes` array.
+3. **Include All Required Fields** – Ensure every object contains `file`, `lineNumber`, `type`, `code`, `imports`, and `considerations`.
+4. **Explicit Changes** – Clearly specify whether a change is an `addition`, `modification`, or `deletion`.
+5. **Accurate Line Numbers** – Ensure correctness with file names and line numbers.
+6. **Imports Handling** – If new imports are required, they must be explicitly included in the `imports` array.
+7. **Edge Cases Handling** – When modifying or generating code, consider potential edge cases such as:
+   - Handling empty inputs
+   - Handling invalid inputs
+   - Performance considerations
+   - Security concerns (e.g., user input sanitization)
+   - Compatibility with different JavaScript environments (Node.js, browser, ES modules, etc.)
+8. **Consistent Formatting** – Ensure proper indentation and spacing for code readability.
 
-The prompt format supports:
-- `ACTION`: Specifies whether to create, modify, or delete code
-- `FILE`: Target file path
-- `DESCRIPTION`: Clear explanation of the change for the accept/reject dialog
-- `LOCATION`: For modifications, specifies where to insert/modify code
-- `CHANGE_TYPE`: How to apply the change:
-  - `INLINE`: Replace specific lines
-  - `BLOCK`: Complete file content
-  - `APPEND`: Add after specified location
-  - `PREPEND`: Add before specified location
-- `CODE`: The actual code to be added or modified
+This ensures seamless integration and a structured approach to generating and modifying code in the VS Code extension.
+
 
 This structured format enables:
 - Clear accept/reject dialogs with change descriptions
