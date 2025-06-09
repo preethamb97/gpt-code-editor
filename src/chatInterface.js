@@ -87,6 +87,28 @@ class ChatInterface {
                 flex-direction: column;
                 height: calc(100vh - 100px);
             }
+            .context-section {
+                background: var(--vscode-editor-background);
+                border: 1px solid var(--vscode-editor-lineHighlightBorder);
+                border-radius: 4px;
+                padding: 10px;
+                margin-bottom: 10px;
+            }
+            .context-section h3 {
+                margin: 0 0 10px 0;
+                color: var(--vscode-editor-foreground);
+            }
+            .context-controls {
+                display: flex;
+                gap: 10px;
+                margin-bottom: 10px;
+            }
+            .selected-files {
+                max-height: 100px;
+                overflow-y: auto;
+                font-size: 12px;
+                color: var(--vscode-descriptionForeground);
+            }
             .messages {
                 flex: 1;
                 overflow-y: auto;
@@ -164,6 +186,12 @@ class ChatInterface {
             .cancel-button.active {
                 display: inline;
             }
+            .loading {
+                color: var(--vscode-editor-foreground);
+                font-style: italic;
+                display: none;
+                margin-left: 10px;
+            }
         `;
     }
 
@@ -213,6 +241,14 @@ class ChatInterface {
         return `
             <body>
                 <div class="chat-container">
+                    <div class="context-section">
+                        <h3>Context Files</h3>
+                        <div class="context-controls">
+                            <button id="addFileButton">Add Files</button>
+                            <button id="clearContextButton">Clear Context</button>
+                        </div>
+                        <div id="selectedFiles" class="selected-files"></div>
+                    </div>
                     <div class="messages" id="messages"></div>
                     <div class="input-container">
                         <input type="text" id="userInput" placeholder="Type your message...">
@@ -236,6 +272,9 @@ class ChatInterface {
             const userInput = document.getElementById('userInput');
             const cancelButton = document.getElementById('cancelButton');
             const loadingIndicator = document.getElementById('loadingIndicator');
+            const addFileButton = document.getElementById('addFileButton');
+            const clearContextButton = document.getElementById('clearContextButton');
+            const selectedFilesDiv = document.getElementById('selectedFiles');
             let abortController = null;
 
             // Initialize message handling
@@ -251,6 +290,9 @@ class ChatInterface {
                     case 'endLoading':
                         setLoading(false);
                         break;
+                    case 'updateFiles':
+                        updateSelectedFiles(message.files);
+                        break;
                 }
             });
 
@@ -265,13 +307,27 @@ class ChatInterface {
                 }
             });
 
+            addFileButton.addEventListener('click', () => {
+                vscode.postMessage({
+                    command: 'addFile'
+                });
+            });
+
+            clearContextButton.addEventListener('click', () => {
+                vscode.postMessage({
+                    command: 'clearContext'
+                });
+            });
+
             function handleSendMessage() {
                 const text = userInput.value.trim();
                 if (text) {
+                    abortController = new AbortController();
                     setLoading(true);
                     vscode.postMessage({
                         command: 'sendMessage',
-                        text: text
+                        text: text,
+                        abortSignal: abortController.signal
                     });
                     userInput.value = '';
                 }
@@ -324,6 +380,42 @@ class ChatInterface {
                     .replace(/"/g, "&quot;")
                     .replace(/'/g, "&#039;");
             }
+
+            function updateSelectedFiles(files) {
+                if (files) {
+                    selectedFilesDiv.innerHTML = files.split('\\n').filter(f => f.trim()).map(file => 
+                        \`<div class="file-item">\${escapeHtml(file)}</div>\`
+                    ).join('');
+                } else {
+                    selectedFilesDiv.innerHTML = '<div class="no-files">No files selected</div>';
+                }
+            }
+
+            // Add missing functions
+            function applyCode(changeId) {
+                vscode.postMessage({
+                    command: 'applyCode',
+                    changeId: changeId
+                });
+            }
+
+            function copyToClipboard(button) {
+                const codeBlock = button.parentElement.querySelector('code');
+                const text = codeBlock.textContent;
+                vscode.postMessage({
+                    command: 'copyToClipboard',
+                    text: text
+                });
+            }
+
+            // Cancel button functionality
+            cancelButton.addEventListener('click', () => {
+                if (abortController) {
+                    abortController.abort();
+                    abortController = null;
+                    setLoading(false);
+                }
+            });
         `;
     }
 
@@ -475,57 +567,67 @@ class ChatInterface {
             const prompt = this.createPromptWithContext(context, text);
 
             const response = await ollamaService.generateResponse(prompt, signal);
-            const responseData = response.response.split('Explanation:')[0];
-            console.log("handleChatMessage Response:", responseData, '\n****responseDataEnd');
             
             if (signal?.aborted) {
                 this.outputChannel.appendLine('\nGeneration cancelled by user');
                 return;
             }
 
-            const parsedResponse = JSON.parse(responseData);
-            
-            if (parsedResponse.changes && parsedResponse.changes.length > 0) {
-                // Handle code changes
-                for (const change of parsedResponse.changes) {
-                    const changeId = await this.codeModifier.applyChange(change);
-                    
-                    // Add explanation message first
+            // Handle the response - it could be JSON with changes or plain text
+            let responseData;
+            try {
+                // Try to parse as JSON first
+                responseData = JSON.parse(response.response || response);
+                
+                if (responseData.changes && responseData.changes.length > 0) {
+                    // Handle code changes
+                    for (const change of responseData.changes) {
+                        const changeId = await this.codeModifier.applyChange(change);
+                        
+                        // Add explanation message first
+                        this.messages.push({ 
+                            role: 'assistant', 
+                            content: `Proposed changes for ${change.file}:\n${change.considerations.map(c => `- ${c}`).join('\n')}`
+                        });
+                        
+                        // Add detailed change information
+                        let changeDetails = '';
+                        if (change.type === 'addition') {
+                            changeDetails = `Adding new code at line ${change.fromLine}:\n${change.add}`;
+                        } else if (change.type === 'deletion') {
+                            changeDetails = `Removing code from lines ${change.fromLine}-${change.toLine}:\n${change.remove}`;
+                        } else if (change.type === 'modification') {
+                            changeDetails = `Modifying code at lines ${change.fromLine}-${change.toLine}:\n` +
+                                `Original code:\n${change.remove}\n\n` +
+                                `New code:\n${change.add}`;
+                        }
+                        
+                        // Add imports information if present
+                        if (change.imports && change.imports.length > 0) {
+                            changeDetails += '\n\nRequired imports:\n' +
+                                change.imports.map(imp => `- ${imp.name} from ${imp.location}`).join('\n');
+                        }
+                        
+                        this.messages.push({
+                            type: 'code',
+                            content: changeDetails,
+                            description: change.considerations.join('\n'),
+                            changeId: changeId
+                        });
+                    }
+                } else {
+                    // Handle regular chat message
                     this.messages.push({ 
                         role: 'assistant', 
-                        content: `Proposed changes for ${change.file}:\n${change.considerations.map(c => `- ${c}`).join('\n')}`
-                    });
-                    
-                    // Add detailed change information
-                    let changeDetails = '';
-                    if (change.type === 'addition') {
-                        changeDetails = `Adding new code at line ${change.fromLine}:\n${change.add}`;
-                    } else if (change.type === 'deletion') {
-                        changeDetails = `Removing code from lines ${change.fromLine}-${change.toLine}:\n${change.remove}`;
-                    } else if (change.type === 'modification') {
-                        changeDetails = `Modifying code at lines ${change.fromLine}-${change.toLine}:\n` +
-                            `Original code:\n${change.remove}\n\n` +
-                            `New code:\n${change.add}`;
-                    }
-                    
-                    // Add imports information if present
-                    if (change.imports && change.imports.length > 0) {
-                        changeDetails += '\n\nRequired imports:\n' +
-                            change.imports.map(imp => `- ${imp.name} from ${imp.location}`).join('\n');
-                    }
-                    
-                    this.messages.push({
-                        type: 'code',
-                        content: changeDetails,
-                        description: change.considerations.join('\n'),
-                        changeId: changeId
+                        content: responseData.message || JSON.stringify(responseData)
                     });
                 }
-            } else {
-                // Handle regular chat message
+            } catch (_parseError) {
+                // If JSON parsing fails, treat as regular text response
+                const textResponse = response.response || response;
                 this.messages.push({ 
                     role: 'assistant', 
-                    content: responseData 
+                    content: textResponse 
                 });
             }
 

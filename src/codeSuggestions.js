@@ -10,7 +10,7 @@ class CodeSuggestionProvider {
         const provider = vscode.languages.registerInlineCompletionItemProvider(
             { pattern: '**' },
             {
-                async provideInlineCompletionItems(document, position, context, token) {
+                async provideInlineCompletionItems(document, position, _context, _token) {
                     try {
                         // Get the current line text
                         const lineText = document.lineAt(position.line).text;

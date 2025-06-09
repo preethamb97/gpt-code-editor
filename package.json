@@ -1,8 +1,12 @@
 {
   "name": "gpt-code-editor",
   "displayName": "GPT Code Editor",
-  "description": "AI-powered code assistance using DeepSeek model",
+  "description": "AI-powered code assistance using Ollama with llama3.2 model",
   "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/gpt-code-editor.git"
+  },
   "engines": {
     "vscode": "^1.96.0"
   },

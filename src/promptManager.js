@@ -1,5 +1,3 @@
-const vscode = require('vscode');
-
 class PromptManager {
     constructor() {
         this.validTypes = ['modification', 'addition', 'deletion'];
@@ -73,6 +71,10 @@ class PromptManager {
         }
 
         return change;
+    }
+
+    static formatUserPrompt(userInput, _selectedFiles = []) {
+        // Implementation of formatUserPrompt method
     }
 }
 

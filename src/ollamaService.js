@@ -1,5 +1,3 @@
-const vscode = require('vscode');
-
 class OllamaService {
     constructor() {
         this.model = 'llama3.2';
@@ -42,32 +40,41 @@ class OllamaService {
                 await this.initialize();
             }
 
-            const expertPromptPrefix = `You are an expert developer specializing in VS Code extension development. Analyze the request and provide a detailed response following this format:
+            // Check if this is a code-related request
+            const isCodeRequest = this.isCodeRequest(prompt);
+            
+            let fullPrompt;
+            if (isCodeRequest) {
+                const expertPromptPrefix = `You are an expert developer specializing in VS Code extension development. Analyze the request and provide a detailed response following this format:
 
-            {
-                "changes": [
-                    {
-                        "file": "filename",
-                        "fromLine": number,
-                        "toLine": number,
-                        "type": "modification" | "addition" | "deletion",
-                        "add": "string",
-                        "remove": "string",
-                        "imports": [
-                            {
-                                "name": "import-name",
-                                "location": "file/import.js"
-                            }
-                        ],
-                        "considerations": [
-                            "Important technical considerations",
-                            "Best practices to follow"
-                        ]
-                    }
-                ]
-            }`;
+                {
+                    "changes": [
+                        {
+                            "file": "filename",
+                            "fromLine": number,
+                            "toLine": number,
+                            "type": "modification" | "addition" | "deletion",
+                            "add": "string",
+                            "remove": "string",
+                            "imports": [
+                                {
+                                    "name": "import-name",
+                                    "location": "file/import.js"
+                                }
+                            ],
+                            "considerations": [
+                                "Important technical considerations",
+                                "Best practices to follow"
+                            ]
+                        }
+                    ]
+                }`;
+                fullPrompt = `${expertPromptPrefix}\n\nUser Request: ${prompt}`;
+            } else {
+                // For regular chat, just use the prompt as-is
+                fullPrompt = `You are a helpful AI assistant specializing in software development. Please provide a clear and helpful response to the following question:\n\n${prompt}`;
+            }
 
-            const fullPrompt = `${expertPromptPrefix}\n\nUser Request: ${prompt}`;
             this.outputChannel.appendLine('Generating response for prompt:');
             this.outputChannel.appendLine(fullPrompt);
 
@@ -78,7 +85,7 @@ class OllamaService {
             });
 
             this.outputChannel.appendLine('\nResponse received:');
-            this.outputChannel.appendLine(response);
+            this.outputChannel.appendLine(JSON.stringify(response, null, 2));
 
             return response;
         } catch (error) {
@@ -88,6 +95,17 @@ class OllamaService {
             this.outputChannel.appendLine(`Error generating response: ${error.message}`);
             throw new Error(`Failed to generate response: ${error.message}`);
         }
+    }
+
+    isCodeRequest(prompt) {
+        const codeKeywords = [
+            'create', 'add', 'modify', 'change', 'update', 'fix', 'implement', 
+            'write', 'generate', 'code', 'function', 'class', 'method', 'file',
+            'delete', 'remove', 'refactor'
+        ];
+        
+        const lowerPrompt = prompt.toLowerCase();
+        return codeKeywords.some(keyword => lowerPrompt.includes(keyword));
     }
 
     async generateResponseWithContext(prompt, searchTerm = '') {

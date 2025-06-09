@@ -89,7 +89,7 @@ class ChangeManager {
     }
 
     async modifyChange(change) {
-        const editor = await vscode.window.showTextDocument(
+        await vscode.window.showTextDocument(
             await vscode.workspace.openTextDocument({
                 content: change.modified,
                 language: 'javascript'

@@ -54,7 +54,7 @@ class ImportHandler {
                 } else {
                     vscode.window.showWarningMessage(`Import not found: ${imp.location}`);
                 }
-            } catch (error) {
+            } catch (_error) {
                 vscode.window.showWarningMessage(`Invalid import: ${imp.location}`);
             }
         }

@@ -1,5 +1,3 @@
-const vscode = require('vscode');
-
 class PromptFormatter {
     static getExpertPromptPrefix() {
         return `You are an expert developer specializing in generating and modifying code for a VS Code extension. Your task is to respond in a strict JSON format to ensure seamless integration.
