@@ -1,6 +1,7 @@
 const vscode = require('vscode');
 const ollamaService = require('./ollamaService');
 const PromptFormatter = require('./promptFormatter');
+const logger = require('./logger');
 
 class ChatInterface {
     constructor() {
@@ -10,49 +11,132 @@ class ChatInterface {
         this.messages = [];
         this.outputChannel = vscode.window.createOutputChannel('GPT Code Editor');
         this.clipboardManager = require('./clipboardManager');
+        this.sessionId = Math.random().toString(36).substring(7);
+        this.messageCount = 0;
+        this.startTime = Date.now();
+        
+        logger.info('ChatInterface initialized', {
+            sessionId: this.sessionId,
+            timestamp: new Date().toISOString()
+        });
     }
 
     async createChatPanel() {
-        this.panel = vscode.window.createWebviewPanel(
-            'gptChat',
-            'GPT Code Editor Chat',
-            vscode.ViewColumn.Two,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true
-            }
-        );
-
-        this.panel.webview.onDidReceiveMessage(
-            async (message) => {
-                switch (message.command) {
-                    case 'addFile':
-                        await this.handleAddFile();
-                        break;
-                    case 'generateCode':
-                        await this.handleGenerateCode(message.text);
-                        break;
-                    case 'clearContext':
-                        this.selectedFiles.clear();
-                        await this.updateFileList();
-                        break;
-                    case 'sendMessage':
-                        await this.handleChatMessage(message.text, message.abortSignal);
-                        break;
-                    case 'cancelGeneration':
-                        // Already handled by the abort controller in the webview
-                        break;
-                    case 'applyCode':
-                        await this.applyCodeChanges(message.changeId);
-                        break;
-                    case 'copyToClipboard':
-                        await this.clipboardManager.copyToClipboard(message.text);
-                        break;
+        const operationStart = Date.now();
+        
+        try {
+            logger.info('Creating chat panel', { sessionId: this.sessionId });
+            
+            this.panel = vscode.window.createWebviewPanel(
+                'gptChat',
+                'GPT Code Editor Chat',
+                vscode.ViewColumn.Two,
+                {
+                    enableScripts: true,
+                    retainContextWhenHidden: true,
+                    localResourceRoots: [vscode.workspace.workspaceFolders?.[0]?.uri].filter(Boolean)
                 }
-            }
-        );
+            );
 
-        this.panel.webview.html = this.getWebviewContent();
+            // Log panel creation
+            logger.info('Webview panel created successfully', {
+                sessionId: this.sessionId,
+                viewColumn: vscode.ViewColumn.Two
+            });
+
+            // Enhanced message handling with logging
+            this.panel.webview.onDidReceiveMessage(
+                async (message) => {
+                    const messageStart = Date.now();
+                    logger.debug('Received webview message', {
+                        sessionId: this.sessionId,
+                        command: message.command,
+                        messageId: ++this.messageCount
+                    });
+
+                    try {
+                        switch (message.command) {
+                            case 'addFile':
+                                await this.handleAddFile();
+                                break;
+                            case 'generateCode':
+                                await this.handleGenerateCode(message.text);
+                                break;
+                            case 'clearContext':
+                                await this.handleClearContext();
+                                break;
+                            case 'sendMessage':
+                                await this.handleChatMessage(message.text, message.abortSignal);
+                                break;
+                            case 'cancelGeneration':
+                                logger.info('Generation cancelled by user', { sessionId: this.sessionId });
+                                break;
+                            case 'applyCode':
+                                await this.applyCodeChanges(message.changeId);
+                                break;
+                            case 'copyToClipboard':
+                                await this.clipboardManager.copyToClipboard(message.text);
+                                break;
+                            case 'showStats':
+                                await this.handleShowStats();
+                                break;
+                            case 'showLogs':
+                                await this.handleShowLogs();
+                                break;
+                            case 'updateFiles':
+                                // This is handled by the webview
+                                break;
+                            case 'updateStats':
+                                // This is handled by the webview
+                                break;
+                            default:
+                                logger.warn('Unknown command received', {
+                                    sessionId: this.sessionId,
+                                    command: message.command
+                                });
+                        }
+                        
+                        await logger.logPerformance(`Handle message: ${message.command}`, messageStart, {
+                            sessionId: this.sessionId,
+                            messageId: this.messageCount
+                        });
+                        
+                    } catch (error) {
+                        logger.error(`Error handling command: ${message.command}`, {
+                            sessionId: this.sessionId,
+                            error: error.message,
+                            stack: error.stack,
+                            messageId: this.messageCount
+                        });
+                        
+                        vscode.window.showErrorMessage(`Error: ${error.message}`);
+                    }
+                }
+            );
+
+            // Log when panel is disposed
+            this.panel.onDidDispose(() => {
+                logger.info('Chat panel disposed', {
+                    sessionId: this.sessionId,
+                    duration: Date.now() - this.startTime,
+                    messagesHandled: this.messageCount
+                });
+            });
+
+            this.panel.webview.html = this.getWebviewContent();
+            
+            await logger.logPerformance('Create chat panel', operationStart, {
+                sessionId: this.sessionId
+            });
+            
+        } catch (error) {
+            logger.error('Failed to create chat panel', {
+                sessionId: this.sessionId,
+                error: error.message,
+                stack: error.stack
+            });
+            throw error;
+        }
     }
 
     getWebviewContent() {
@@ -108,6 +192,34 @@ class ChatInterface {
                 overflow-y: auto;
                 font-size: 12px;
                 color: var(--vscode-descriptionForeground);
+            }
+            .stats-display {
+                background: var(--vscode-editor-inactiveSelectionBackground);
+                border: 1px solid var(--vscode-editor-lineHighlightBorder);
+                border-radius: 4px;
+                padding: 10px;
+                margin-top: 10px;
+                font-size: 12px;
+            }
+            .stats-item {
+                display: flex;
+                justify-content: space-between;
+                margin: 5px 0;
+            }
+            .stats-label {
+                color: var(--vscode-editor-foreground);
+                font-weight: bold;
+            }
+            .stats-value {
+                color: var(--vscode-descriptionForeground);
+            }
+            .file-item {
+                padding: 2px 0;
+                border-bottom: 1px solid var(--vscode-editor-lineHighlightBorder);
+            }
+            .no-files {
+                color: var(--vscode-descriptionForeground);
+                font-style: italic;
             }
             .messages {
                 flex: 1;
@@ -246,8 +358,11 @@ class ChatInterface {
                         <div class="context-controls">
                             <button id="addFileButton">Add Files</button>
                             <button id="clearContextButton">Clear Context</button>
+                            <button id="showStatsButton">Show Stats</button>
+                            <button id="showLogsButton">Show Logs</button>
                         </div>
                         <div id="selectedFiles" class="selected-files"></div>
+                        <div id="statsDisplay" class="stats-display" style="display: none;"></div>
                     </div>
                     <div class="messages" id="messages"></div>
                     <div class="input-container">
@@ -275,6 +390,9 @@ class ChatInterface {
             const addFileButton = document.getElementById('addFileButton');
             const clearContextButton = document.getElementById('clearContextButton');
             const selectedFilesDiv = document.getElementById('selectedFiles');
+            const showStatsButton = document.getElementById('showStatsButton');
+            const showLogsButton = document.getElementById('showLogsButton');
+            const statsDisplay = document.getElementById('statsDisplay');
             let abortController = null;
 
             // Initialize message handling
@@ -292,6 +410,9 @@ class ChatInterface {
                         break;
                     case 'updateFiles':
                         updateSelectedFiles(message.files);
+                        break;
+                    case 'updateStats':
+                        updateStatsDisplay(message.stats);
                         break;
                 }
             });
@@ -316,6 +437,18 @@ class ChatInterface {
             clearContextButton.addEventListener('click', () => {
                 vscode.postMessage({
                     command: 'clearContext'
+                });
+            });
+
+            showStatsButton.addEventListener('click', () => {
+                vscode.postMessage({
+                    command: 'showStats'
+                });
+            });
+
+            showLogsButton.addEventListener('click', () => {
+                vscode.postMessage({
+                    command: 'showLogs'
                 });
             });
 
@@ -388,6 +521,45 @@ class ChatInterface {
                     ).join('');
                 } else {
                     selectedFilesDiv.innerHTML = '<div class="no-files">No files selected</div>';
+                }
+            }
+
+            function updateStatsDisplay(stats) {
+                if (stats) {
+                    statsDisplay.style.display = 'block';
+                    statsDisplay.innerHTML = \`
+                        <h4>Performance Statistics</h4>
+                        <div class="stats-item">
+                            <span class="stats-label">Session ID:</span>
+                            <span class="stats-value">\${stats.sessionId || 'N/A'}</span>
+                        </div>
+                        <div class="stats-item">
+                            <span class="stats-label">Messages Handled:</span>
+                            <span class="stats-value">\${stats.messageCount || 0}</span>
+                        </div>
+                        <div class="stats-item">
+                            <span class="stats-label">Session Duration:</span>
+                            <span class="stats-value">\${stats.sessionDuration || 'N/A'}</span>
+                        </div>
+                        <div class="stats-item">
+                            <span class="stats-label">Ollama Requests:</span>
+                            <span class="stats-value">\${stats.ollamaStats?.requestCount || 0}</span>
+                        </div>
+                        <div class="stats-item">
+                            <span class="stats-label">Total Tokens:</span>
+                            <span class="stats-value">\${stats.ollamaStats?.totalTokens || 0}</span>
+                        </div>
+                        <div class="stats-item">
+                            <span class="stats-label">Avg Tokens/Request:</span>
+                            <span class="stats-value">\${stats.ollamaStats?.averageTokensPerRequest || 0}</span>
+                        </div>
+                        <div class="stats-item">
+                            <span class="stats-label">Context Files:</span>
+                            <span class="stats-value">\${stats.contextFileCount || 0}</span>
+                        </div>
+                    \`;
+                } else {
+                    statsDisplay.style.display = 'none';
                 }
             }
 
@@ -555,7 +727,17 @@ class ChatInterface {
     }
 
     async handleChatMessage(text, signal) {
+        const messageStart = Date.now();
+        const messageId = `msg_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        
         try {
+            logger.info('Processing chat message', {
+                sessionId: this.sessionId,
+                messageId,
+                messageLength: text.length,
+                contextFileCount: this.selectedFiles.size
+            });
+
             // Add user message
             this.messages.push({ role: 'user', content: text });
             await this.updateWebview();
@@ -564,11 +746,28 @@ class ChatInterface {
             this.outputChannel.appendLine(`User: ${text}`);
 
             const context = await this.getSelectedFilesContext();
+            logger.debug('Context retrieved', {
+                sessionId: this.sessionId,
+                messageId,
+                contextLength: context.length,
+                fileCount: this.selectedFiles.size
+            });
+
             const prompt = this.createPromptWithContext(context, text);
+            logger.debug('Prompt created', {
+                sessionId: this.sessionId,
+                messageId,
+                promptLength: prompt.length
+            });
 
             const response = await ollamaService.generateResponse(prompt, signal);
             
             if (signal?.aborted) {
+                logger.info('Message generation cancelled', {
+                    sessionId: this.sessionId,
+                    messageId,
+                    duration: Date.now() - messageStart
+                });
                 this.outputChannel.appendLine('\nGeneration cancelled by user');
                 return;
             }
@@ -579,9 +778,26 @@ class ChatInterface {
                 // Try to parse as JSON first
                 responseData = JSON.parse(response.response || response);
                 
+                logger.debug('Response parsed as JSON', {
+                    sessionId: this.sessionId,
+                    messageId,
+                    hasChanges: !!(responseData.changes && responseData.changes.length > 0),
+                    changeCount: responseData.changes?.length || 0
+                });
+                
                 if (responseData.changes && responseData.changes.length > 0) {
                     // Handle code changes
-                    for (const change of responseData.changes) {
+                    for (let i = 0; i < responseData.changes.length; i++) {
+                        const change = responseData.changes[i];
+                        
+                        logger.info('Processing code change', {
+                            sessionId: this.sessionId,
+                            messageId,
+                            changeIndex: i,
+                            changeType: change.type,
+                            file: change.file
+                        });
+
                         const changeId = await this.codeModifier.applyChange(change);
                         
                         // Add explanation message first
@@ -614,12 +830,25 @@ class ChatInterface {
                             description: change.considerations.join('\n'),
                             changeId: changeId
                         });
+
+                        logger.info('Code change processed successfully', {
+                            sessionId: this.sessionId,
+                            messageId,
+                            changeIndex: i,
+                            changeId
+                        });
                     }
                 } else {
                     // Handle regular chat message
                     this.messages.push({ 
                         role: 'assistant', 
                         content: responseData.message || JSON.stringify(responseData)
+                    });
+
+                    logger.info('Regular chat response processed', {
+                        sessionId: this.sessionId,
+                        messageId,
+                        responseLength: (responseData.message || JSON.stringify(responseData)).length
                     });
                 }
             } catch (_parseError) {
@@ -629,19 +858,53 @@ class ChatInterface {
                     role: 'assistant', 
                     content: textResponse 
                 });
+
+                logger.info('Text response processed', {
+                    sessionId: this.sessionId,
+                    messageId,
+                    responseLength: textResponse.length,
+                    parseError: 'JSON parsing failed, treated as text'
+                });
             }
 
             await this.updateWebview();
+
+            await logger.logPerformance('Handle chat message', messageStart, {
+                sessionId: this.sessionId,
+                messageId,
+                messageLength: text.length,
+                contextLength: context.length,
+                responseProcessed: true
+            });
+
         } catch (error) {
+            logger.error('Chat message handling failed', {
+                sessionId: this.sessionId,
+                messageId,
+                error: error.message,
+                stack: error.stack,
+                duration: Date.now() - messageStart
+            });
+            
             this.handleError(error);
         }
     }
 
     handleError(error) {
+        const errorInfo = {
+            sessionId: this.sessionId,
+            errorType: error.name,
+            errorMessage: error.message,
+            stack: error.stack,
+            timestamp: new Date().toISOString()
+        };
+
         if (error.name === 'AbortError') {
             this.messages.push({ role: 'system', content: 'Generation cancelled.' });
+            logger.info('Generation cancelled by user', errorInfo);
             this.outputChannel.appendLine('\nGeneration cancelled by user');
         } else {
+            logger.error('Chat interface error occurred', errorInfo);
             this.outputChannel.appendLine(`\nError: ${error.message}`);
             this.messages.push({ role: 'system', content: `Error: ${error.message}` });
             vscode.window.showErrorMessage(`Failed to process message: ${error.message}`);
@@ -680,6 +943,107 @@ class ChatInterface {
 
     createPromptWithContext(context, userInput) {
         return PromptFormatter.formatPromptWithContext(context, userInput);
+    }
+
+    async handleClearContext() {
+        logger.info('Clearing context', {
+            sessionId: this.sessionId,
+            previousFileCount: this.selectedFiles.size
+        });
+        
+        this.selectedFiles.clear();
+        await this.updateFileList();
+        
+        logger.info('Context cleared successfully', {
+            sessionId: this.sessionId
+        });
+    }
+
+    async handleShowStats() {
+        try {
+            logger.info('Displaying performance statistics', { sessionId: this.sessionId });
+            
+            const ollamaStats = ollamaService.getStats();
+            const sessionDuration = Date.now() - this.startTime;
+            const durationFormatted = this.formatDuration(sessionDuration);
+            
+            const stats = {
+                sessionId: this.sessionId,
+                messageCount: this.messageCount,
+                sessionDuration: durationFormatted,
+                ollamaStats,
+                contextFileCount: this.selectedFiles.size,
+                timestamp: new Date().toISOString()
+            };
+            
+            await this.panel.webview.postMessage({
+                type: 'updateStats',
+                stats: stats
+            });
+            
+            logger.info('Statistics displayed successfully', { 
+                sessionId: this.sessionId,
+                stats 
+            });
+            
+        } catch (error) {
+            logger.error('Failed to show statistics', {
+                sessionId: this.sessionId,
+                error: error.message,
+                stack: error.stack
+            });
+        }
+    }
+
+    async handleShowLogs() {
+        try {
+            logger.info('Opening log file', { sessionId: this.sessionId });
+            
+            const logFile = await logger.getLogFile();
+            const document = await vscode.workspace.openTextDocument(logFile);
+            await vscode.window.showTextDocument(document, vscode.ViewColumn.Beside);
+            
+            logger.info('Log file opened successfully', { 
+                sessionId: this.sessionId,
+                logFile 
+            });
+            
+        } catch (error) {
+            logger.error('Failed to show logs', {
+                sessionId: this.sessionId,
+                error: error.message,
+                stack: error.stack
+            });
+            
+            vscode.window.showErrorMessage(`Failed to show logs: ${error.message}`);
+        }
+    }
+
+    formatDuration(milliseconds) {
+        const seconds = Math.floor(milliseconds / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        
+        if (hours > 0) {
+            return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+        } else if (minutes > 0) {
+            return `${minutes}m ${seconds % 60}s`;
+        } else {
+            return `${seconds}s`;
+        }
+    }
+
+    // Add dispose method for cleanup
+    dispose() {
+        logger.info('ChatInterface disposed', {
+            sessionId: this.sessionId,
+            duration: Date.now() - this.startTime,
+            messagesHandled: this.messageCount
+        });
+        
+        if (this.panel) {
+            this.panel.dispose();
+        }
     }
 }
 

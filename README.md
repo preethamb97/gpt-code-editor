@@ -1,6 +1,6 @@
 # GPT Code Editor Extension
 
-A VS Code extension that provides an AI-powered chat interface using Ollama with the llama3.2 model for intelligent code assistance.
+A VS Code extension that provides an AI-powered chat interface using Ollama with the llama3.2 model for intelligent code assistance, featuring comprehensive logging and performance monitoring.
 
 ## Features
 
@@ -9,6 +9,31 @@ A VS Code extension that provides an AI-powered chat interface using Ollama with
 - **Code Generation & Modification**: AI can propose code changes with apply/reject options
 - **Smart Code Suggestions**: Inline completion support for faster coding
 - **Copy to Clipboard**: Easy copying of generated code snippets
+- **📊 Performance Monitoring**: Real-time statistics and performance metrics
+- **📝 Comprehensive Logging**: Detailed logging to file for debugging and analysis
+- **🔍 Health Monitoring**: Automatic health checks and system monitoring
+- **📈 Usage Analytics**: Track tokens, requests, and session statistics
+
+## New Enhanced Features
+
+### Logging & Monitoring
+- **File Logging**: All activities logged to `/tmp/gpt-code-editor.log`
+- **Performance Metrics**: Request/response times, token usage, memory monitoring
+- **Session Tracking**: Unique session IDs for better debugging
+- **Health Checks**: Automatic Ollama service health monitoring
+- **Error Tracking**: Comprehensive error logging with stack traces
+
+### Performance Dashboard
+- **Real-time Stats**: View session statistics directly in the chat interface
+- **Token Tracking**: Monitor AI token usage and costs
+- **Memory Monitoring**: Background memory usage tracking
+- **Request Analytics**: Track successful/failed requests
+
+### Enhanced UI
+- **Status Bar Integration**: Quick access button in VS Code status bar
+- **Statistics Display**: Toggle performance stats in chat interface
+- **Log Viewer**: Quick access to logs from within VS Code
+- **Context Management**: Improved file selection and context handling
 
 ## Prerequisites
 
@@ -57,9 +82,34 @@ Then install the generated `.vsix` file as described in Option A.
 
 ### Opening the Chat Interface
 
-1. Open Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`)
-2. Run command: `GPT: Open Chat Interface`
+1. **Method 1**: Open Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) → "GPT: Open Chat Interface"
+2. **Method 2**: Click the "GPT Chat" button in the status bar
 3. The chat panel will open in a new column
+
+### New Commands Available
+
+- `GPT: Open Chat Interface` - Open the main chat interface
+- `GPT: Show Logs` - Open the log file for debugging
+- `GPT: Clear Logs` - Clear all logged data
+
+### Performance Monitoring
+
+#### Viewing Statistics
+1. Click "Show Stats" button in the chat interface
+2. View real-time performance metrics including:
+   - Session duration and message count
+   - Ollama requests and token usage
+   - Average tokens per request
+   - Context file count
+
+#### Accessing Logs
+1. Click "Show Logs" button in chat interface, or
+2. Run `GPT: Show Logs` command
+3. View detailed logs including:
+   - Request/response times
+   - Error details with stack traces
+   - Session tracking information
+   - Memory usage statistics
 
 ### Adding Context Files
 

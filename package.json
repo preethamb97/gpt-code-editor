@@ -24,6 +24,14 @@
       {
         "command": "gpt-code-editor.openChat",
         "title": "GPT: Open Chat Interface"
+      },
+      {
+        "command": "gpt-code-editor.showLogs",
+        "title": "GPT: Show Logs"
+      },
+      {
+        "command": "gpt-code-editor.clearLogs",
+        "title": "GPT: Clear Logs"
       }
     ]
   },
